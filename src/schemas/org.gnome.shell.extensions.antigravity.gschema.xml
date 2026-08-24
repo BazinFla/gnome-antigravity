@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.antigravity" path="/org/gnome/shell/extensions/antigravity/">
+    
+    <key name="limit-display-type" type="s">
+      <default>'5h'</default>
+      <summary>Limit type displayed in top bar</summary>
+      <description>Choose which limit to display in the top bar: '5h', 'weekly', 'both'.</description>
+    </key>
+
+    <key name="refresh-interval" type="i">
+      <default>300</default>
+      <summary>Refresh interval (seconds)</summary>
+      <description>API polling frequency for active account (in seconds). 0 = disabled.</description>
+    </key>
+
+    <key name="critical-threshold" type="i">
+      <default>15</default>
+      <summary>Critical alert threshold (%)</summary>
+      <description>Remaining percentage below which indicator turns red (0 to disable).</description>
+    </key>
+
+    <key name="auto-detect-session" type="b">
+      <default>true</default>
+      <summary>Auto-detect active session</summary>
+      <description>Automatically detect and sync the active account from local Antigravity IDE.</description>
+    </key>
+
+  </schema>
+</schemalist>

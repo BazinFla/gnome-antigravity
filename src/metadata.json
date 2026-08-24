@@ -1,0 +1,16 @@
+{
+  "name": "Antigravity Quota Monitor",
+  "description": "Monitor your Antigravity quotas (Claude & Gemini, 5h & Weekly) in real time with team multi-account support in the GNOME top bar.",
+  "uuid": "antigravity-quota@bazinfla.github.com",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
+  "url": "https://github.com/bazinfla/gnome-antigravity",
+  "version": 1,
+  "settings-schema": "org.gnome.shell.extensions.antigravity"
+}

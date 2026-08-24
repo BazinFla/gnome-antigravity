@@ -1,0 +1,17 @@
+# Compiled binary schemas
+src/schemas/gschemas.compiled
+
+# Packaged distribution directory
+dist/
+*.shell-extension.zip
+*.zip
+
+# System and editor files
+.DS_Store
+*~
+*.swp
+.vscode/
+.idea/
+
+# Dev
+dev/
