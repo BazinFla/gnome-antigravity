@@ -12,7 +12,12 @@ export class AccountsManager {
         this._configDir = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnome-antigravity']);
         this._configFile = GLib.build_filenamev([this._configDir, 'accounts.json']);
         this._accounts = [];
+        this._listeners = new Set();
+        this._fileMonitor = null;
+        this._fileMonitorId = null;
+
         this._ensureConfigDir();
+        this._setupFileMonitor();
         this.loadAccountsFromDisk();
     }
 
@@ -27,31 +32,77 @@ export class AccountsManager {
         }
     }
 
+    _setupFileMonitor() {
+        try {
+            const file = Gio.File.new_for_path(this._configFile);
+            this._fileMonitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
+            this._fileMonitorId = this._fileMonitor.connect('changed', async (mon, f, other, eventType) => {
+                if (
+                    eventType === Gio.FileMonitorEvent.CHANGES_DONE_HINT ||
+                    eventType === Gio.FileMonitorEvent.CREATED
+                ) {
+                    await this.loadAccountsFromDisk();
+                    this._notifyChange();
+                }
+            });
+        } catch (e) {
+            console.warn(`[Antigravity] Accounts file monitor warning: ${e.message}`);
+        }
+    }
+
+    /**
+     * Registers a listener callback for account changes.
+     * @param {Function} callback
+     */
+    addChangeListener(callback) {
+        this._listeners.add(callback);
+    }
+
+    /**
+     * Unregisters a change listener.
+     * @param {Function} callback
+     */
+    removeChangeListener(callback) {
+        this._listeners.delete(callback);
+    }
+
+    _notifyChange() {
+        for (const cb of this._listeners) {
+            try {
+                cb(this._accounts);
+            } catch (e) {
+                console.error(`[Antigravity] Accounts change listener error: ${e.message}`);
+            }
+        }
+    }
+
     /**
      * Asynchronously loads accounts list from disk into memory.
+     * @returns {Promise<Array<Object>>}
      */
     async loadAccountsFromDisk() {
         try {
             const text = await loadTextFileAsync(this._configFile);
             if (text) {
                 const data = JSON.parse(text);
-                if (data && Array.isArray(data.accounts)) {
+                if (data && Array.isArray(data.accounts) && data.accounts.length > 0) {
                     this._accounts = data.accounts;
                 }
             }
 
             if (this._accounts.length === 0) {
                 this._accounts = this._createDefaultConfig();
-                this.saveAccounts(this._accounts);
+                await this.saveAccounts(this._accounts);
             }
 
             if (this._accounts.length > 0 && !this._accounts.some(a => a.isActive)) {
                 this._accounts[0].isActive = true;
-                this.saveAccounts(this._accounts);
+                await this.saveAccounts(this._accounts);
             }
         } catch (e) {
             console.error(`[Antigravity] Error reading accounts.json: ${e.message}`);
         }
+        return this._accounts;
     }
 
     _createDefaultConfig() {
@@ -80,10 +131,11 @@ export class AccountsManager {
     }
 
     /**
-     * Saves accounts list to accounts.json asynchronously.
+     * Saves accounts list to accounts.json asynchronously and notifies listeners.
      * @param {Array<Object>} accounts
+     * @returns {Promise<boolean>}
      */
-    saveAccounts(accounts) {
+    async saveAccounts(accounts) {
         this._accounts = accounts;
         this._ensureConfigDir();
         const data = {
@@ -91,9 +143,9 @@ export class AccountsManager {
             updatedAt: new Date().toISOString(),
             accounts: accounts
         };
-        replaceFileContentsAsync(this._configFile, JSON.stringify(data, null, 2)).catch((e) => {
-            console.error(`[Antigravity] Error saving accounts.json: ${e.message}`);
-        });
+        const ok = await replaceFileContentsAsync(this._configFile, JSON.stringify(data, null, 2));
+        this._notifyChange();
+        return ok;
     }
 
     /**
@@ -110,19 +162,19 @@ export class AccountsManager {
      * Sets an account as active by ID.
      * @param {string} id
      */
-    setActiveAccount(id) {
+    async setActiveAccount(id) {
         const accounts = this.loadAccounts();
         for (const acc of accounts) {
             acc.isActive = (acc.id === id);
         }
-        this.saveAccounts(accounts);
+        await this.saveAccounts(accounts);
     }
 
     /**
      * Adds or updates an account.
      * @param {Object} accountData
      */
-    upsertAccount(accountData) {
+    async upsertAccount(accountData) {
         const accounts = this.loadAccounts();
         const existingIdx = accounts.findIndex(a => 
             (accountData.id && a.id === accountData.id) || 
@@ -141,20 +193,20 @@ export class AccountsManager {
             }
             accounts.push(accountData);
         }
-        this.saveAccounts(accounts);
+        await this.saveAccounts(accounts);
     }
 
     /**
      * Removes an account by ID and clears its cache.
      * @param {string} id
      */
-    removeAccount(id) {
+    async removeAccount(id) {
         let accounts = this.loadAccounts();
         accounts = accounts.filter(a => a.id !== id);
         if (accounts.length > 0 && !accounts.some(a => a.isActive)) {
             accounts[0].isActive = true;
         }
-        this.saveAccounts(accounts);
+        await this.saveAccounts(accounts);
 
         try {
             const cache = new QuotaCache();
@@ -180,7 +232,7 @@ export class AccountsManager {
                 accounts.push(captured);
             }
         }
-        this.saveAccounts(accounts);
+        await this.saveAccounts(accounts);
         return accounts;
     }
 
@@ -228,5 +280,17 @@ export class AccountsManager {
     async captureActiveSession() {
         const list = await this.captureAllActiveSessions();
         return list.length > 0 ? list[0] : null;
+    }
+
+    destroy() {
+        if (this._fileMonitorId && this._fileMonitor) {
+            this._fileMonitor.disconnect(this._fileMonitorId);
+            this._fileMonitorId = null;
+        }
+        if (this._fileMonitor) {
+            this._fileMonitor.cancel();
+            this._fileMonitor = null;
+        }
+        this._listeners.clear();
     }
 }

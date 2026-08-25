@@ -89,14 +89,14 @@ export default class AntigravityPreferences extends ExtensionPreferences {
         // -------------------------------------------------------------
         const accountsGroup = new Adw.PreferencesGroup({
             title: 'Team Accounts & Multi-session',
-            description: 'Manage accounts monitored by the extension'
+            description: 'Manage accounts and active sessions monitored by the extension'
         });
         page.add(accountsGroup);
 
         // Action Buttons Row
         const actionsRow = new Adw.ActionRow({
-            title: 'Add Account',
-            subtitle: 'Capture active IDE session or add a team account'
+            title: 'Session Discovery',
+            subtitle: 'Automatically detect and sync active local IDE sessions'
         });
 
         const captureBtn = new Gtk.Button({
@@ -106,33 +106,28 @@ export default class AntigravityPreferences extends ExtensionPreferences {
         });
         actionsRow.add_suffix(captureBtn);
 
-        const addManualBtn = new Gtk.Button({
-            label: '+ Add Manually',
-            valign: Gtk.Align.CENTER
-        });
-        actionsRow.add_suffix(addManualBtn);
         accountsGroup.add(actionsRow);
 
         // Accounts List container
         const accountsListGroup = new Adw.PreferencesGroup({
-            title: 'Team Accounts & Sessions'
+            title: 'Configured Accounts & Team Members'
         });
         page.add(accountsListGroup);
 
         let accountRows = [];
 
-        const rebuildAccountsList = () => {
+        const rebuildAccountsList = async () => {
             // Remove previous rows cleanly
             for (const row of accountRows) {
                 accountsListGroup.remove(row);
             }
             accountRows = [];
 
-            const accounts = accountsManager.loadAccounts();
+            const accounts = await accountsManager.loadAccountsFromDisk();
             if (accounts.length === 0) {
                 const emptyRow = new Adw.ActionRow({
-                    title: 'No account configured',
-                    subtitle: 'Click "Capture IDE Session" to add your active session'
+                    title: 'No accounts configured',
+                    subtitle: 'Click "Capture IDE Session" above to detect your running IDE session'
                 });
                 accountsListGroup.add(emptyRow);
                 accountRows.push(emptyRow);
@@ -141,20 +136,35 @@ export default class AntigravityPreferences extends ExtensionPreferences {
 
             for (const acc of accounts) {
                 const row = new Adw.ActionRow({
-                    title: acc.name || 'Account',
-                    subtitle: acc.email || 'No email'
+                    title: acc.name || 'Antigravity Account',
+                    subtitle: `${acc.email || 'No email'}${acc.isActive ? '  •  [ACTIVE IN TOP BAR]' : ''}`
                 });
 
-                const deleteBtn = new Gtk.Button({
-                    icon_name: 'user-trash-symbolic',
-                    valign: Gtk.Align.CENTER,
-                    css_classes: ['destructive-action']
+                // Star / Active button in prefix
+                const starBtn = new Gtk.Button({
+                    label: acc.isActive ? '⭐ Active' : '☆ Select',
+                    css_classes: acc.isActive ? ['suggested-action'] : ['flat'],
+                    valign: Gtk.Align.CENTER
                 });
-                deleteBtn.connect('clicked', () => {
-                    accountsManager.removeAccount(acc.id);
-                    rebuildAccountsList();
+                starBtn.connect('clicked', async () => {
+                    await accountsManager.setActiveAccount(acc.id);
+                    await rebuildAccountsList();
                 });
-                row.add_suffix(deleteBtn);
+                row.add_prefix(starBtn);
+
+                // Delete button in suffix (only if more than 1 account)
+                if (accounts.length > 1) {
+                    const deleteBtn = new Gtk.Button({
+                        icon_name: 'user-trash-symbolic',
+                        valign: Gtk.Align.CENTER,
+                        css_classes: ['destructive-action']
+                    });
+                    deleteBtn.connect('clicked', async () => {
+                        await accountsManager.removeAccount(acc.id);
+                        await rebuildAccountsList();
+                    });
+                    row.add_suffix(deleteBtn);
+                }
 
                 accountsListGroup.add(row);
                 accountRows.push(row);
@@ -163,28 +173,17 @@ export default class AntigravityPreferences extends ExtensionPreferences {
 
         captureBtn.connect('clicked', async () => {
             captureBtn.sensitive = false;
-            captureBtn.label = '⏳ Capturing...';
+            captureBtn.label = '⏳ Capturing active sessions...';
             try {
                 await accountsManager.captureAndSyncAllSessions();
-                rebuildAccountsList();
+                await rebuildAccountsList();
             } finally {
                 captureBtn.label = '🪄 Capture IDE Session';
                 captureBtn.sensitive = true;
             }
         });
 
-        addManualBtn.connect('clicked', () => {
-            const newAcc = {
-                id: 'acc_' + Date.now().toString(36),
-                name: 'Team Member',
-                email: 'member@company.com',
-                token: '',
-                isActive: false
-            };
-            accountsManager.upsertAccount(newAcc);
-            rebuildAccountsList();
-        });
-
+        // Initial asynchronous list build
         rebuildAccountsList();
     }
 }

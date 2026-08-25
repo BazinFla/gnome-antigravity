@@ -17,6 +17,12 @@ export class QuotaEngine {
         this._pollSourceId = null;
         this._localTimerSourceId = null;
         this._isRefreshing = false;
+
+        // Auto-refresh when accounts list is updated (e.g. from Preferences or Session Capture)
+        this._accountsChangedListener = async () => {
+            await this.refreshAllAccounts();
+        };
+        this.accountsManager.addChangeListener(this._accountsChangedListener);
     }
 
     /**
@@ -48,12 +54,14 @@ export class QuotaEngine {
     /**
      * Starts polling loop and local countdown timer.
      */
-    start() {
+    async start() {
+        await this.accountsManager.loadAccountsFromDisk();
+        await this.cache.loadDiskCache();
+
         const accounts = this.accountsManager.loadAccounts();
         this.cache.prune(accounts);
 
         this.refreshAllAccounts();
-
         this._setupPolling();
 
         if (this._settings) {
@@ -85,7 +93,7 @@ export class QuotaEngine {
     }
 
     /**
-     * Stops all timers.
+     * Stops all timers and unbinds listeners.
      */
     stop() {
         if (this._pollSourceId) {
@@ -100,6 +108,11 @@ export class QuotaEngine {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
         }
+        if (this._accountsChangedListener) {
+            this.accountsManager.removeChangeListener(this._accountsChangedListener);
+            this._accountsChangedListener = null;
+        }
+        this.accountsManager.destroy();
     }
 
     /**
@@ -150,7 +163,7 @@ export class QuotaEngine {
      * @param {string} accountId
      */
     async switchActiveAccount(accountId) {
-        this.accountsManager.setActiveAccount(accountId);
+        await this.accountsManager.setActiveAccount(accountId);
         await this.refreshActiveAccount();
         this._notifyListeners();
     }
