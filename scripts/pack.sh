@@ -21,6 +21,7 @@ gnome-extensions pack \
     --force \
     --extra-source=ui \
     --extra-source=lib \
+    --extra-source=ressources \
     --extra-source=stylesheet.css \
     --out-dir="$DIST_DIR" \
     src

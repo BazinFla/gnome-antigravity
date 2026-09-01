@@ -135,9 +135,10 @@ export default class AntigravityPreferences extends ExtensionPreferences {
             }
 
             for (const acc of accounts) {
+                const planTag = acc.isFree ? 'FREE' : 'PRO';
                 const row = new Adw.ActionRow({
-                    title: acc.name || 'Antigravity Account',
-                    subtitle: `${acc.email || 'No email'}${acc.isActive ? '  •  [ACTIVE IN TOP BAR]' : ''}`
+                    title: `${acc.name || 'Antigravity Account'} [${planTag}]`,
+                    subtitle: `${acc.email || 'No email'}  •  Plan: ${acc.planName || planTag}${acc.isActive ? '  •  [ACTIVE IN TOP BAR]' : ''}`
                 });
 
                 // Star / Active button in prefix

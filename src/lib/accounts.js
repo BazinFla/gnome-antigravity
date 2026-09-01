@@ -227,6 +227,9 @@ export class AccountsManager {
             const existing = accounts.find(a => a.email && a.email.toLowerCase() === captured.email.toLowerCase());
             if (existing) {
                 if (captured.name) existing.name = captured.name;
+                if (captured.planName) existing.planName = captured.planName;
+                if (typeof captured.isFree === 'boolean') existing.isFree = captured.isFree;
+                if (captured.tier) existing.tier = captured.tier;
             } else {
                 captured.isActive = (accounts.length === 0);
                 accounts.push(captured);
@@ -261,6 +264,9 @@ export class AccountsManager {
                             token: '',
                             isActive: false,
                             isLocalSession: true,
+                            planName: server.planName || (server.isFree ? 'Free' : 'Pro'),
+                            tier: server.tier || '',
+                            isFree: server.isFree ?? false,
                             capturedAt: new Date().toISOString()
                         });
                     }

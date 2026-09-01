@@ -13,7 +13,7 @@ glib-compile-schemas src/schemas/
 
 echo "📁 Installing extension to $EXT_DIR..."
 mkdir -p "$EXT_DIR"
-cp -r src/metadata.json src/extension.js src/prefs.js src/stylesheet.css src/schemas src/lib src/ui "$EXT_DIR/"
+cp -r src/metadata.json src/extension.js src/prefs.js src/stylesheet.css src/schemas src/lib src/ui src/ressources "$EXT_DIR/"
 
 echo "⚙️ Compiling installed schemas..."
 glib-compile-schemas "$EXT_DIR/schemas/"

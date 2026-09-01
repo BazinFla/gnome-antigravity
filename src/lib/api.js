@@ -87,13 +87,24 @@ export class AntigravityApi {
                         proc.csrfToken
                     );
                     if (statusData && statusData.userStatus) {
+                        const userStatus = statusData.userStatus;
+                        const planInfo = userStatus.planStatus?.planInfo;
+                        const userTier = userStatus.userTier;
+                        const planName = planInfo?.planName || userTier?.name || '';
+                        const teamsTier = planInfo?.teamsTier || '';
+                        const tierId = (userTier?.id || '').toLowerCase();
+                        const isFree = (tierId === 'free' || tierId.includes('free') || planName.toLowerCase().includes('free') ||
+                                       (!teamsTier.includes('PRO') && !teamsTier.includes('TEAMS') && !teamsTier.includes('ENTERPRISE') && !tierId.includes('pro') && !tierId.includes('ultra')));
+
                         activeServers.push({
                             pid: proc.pid,
                             csrfToken: proc.csrfToken,
                             port: port,
-                            email: statusData.userStatus.email || '',
-                            name: statusData.userStatus.name || '',
-                            planName: statusData.userStatus.planStatus?.planInfo?.planName || ''
+                            email: userStatus.email || '',
+                            name: userStatus.name || '',
+                            planName: planName || (isFree ? 'Free' : 'Pro'),
+                            tier: tierId,
+                            isFree: isFree
                         });
                         break; // Found working HTTP port for this PID
                     }
@@ -272,11 +283,15 @@ export class AntigravityApi {
         let claudeWk = 1.0;
         let claudeReset5h = null;
         let claudeResetWk = null;
+        let hasClaude5h = false;
+        let hasClaudeWk = false;
 
         let gemini5h = 1.0;
         let geminiWk = 1.0;
         let geminiReset5h = null;
         let geminiResetWk = null;
+        let hasGemini5h = false;
+        let hasGeminiWk = false;
 
         for (const g of groups) {
             const name = (g.displayName || g.model || g.name || g.tagTitle || '').toLowerCase();
@@ -295,17 +310,21 @@ export class AntigravityApi {
                         if (windowType.includes('weekly') || windowType === 'weekly') {
                             geminiWk = frac;
                             geminiResetWk = reset;
+                            hasGeminiWk = true;
                         } else {
                             gemini5h = frac;
                             geminiReset5h = reset;
+                            hasGemini5h = true;
                         }
                     } else if (isClaude) {
                         if (windowType.includes('weekly') || windowType === 'weekly') {
                             claudeWk = frac;
                             claudeResetWk = reset;
+                            hasClaudeWk = true;
                         } else {
                             claude5h = frac;
                             claudeReset5h = reset;
+                            hasClaude5h = true;
                         }
                     }
                 }
@@ -318,48 +337,59 @@ export class AntigravityApi {
                     if (g.quotaBucketType === 1 || g.isWeekly) {
                         claudeWk = fraction;
                         claudeResetWk = resetTime;
+                        hasClaudeWk = true;
                     } else {
                         claude5h = fraction;
                         claudeReset5h = resetTime;
+                        hasClaude5h = true;
                     }
                 } else if (isGemini) {
                     if (g.quotaBucketType === 1 || g.isWeekly) {
                         geminiWk = fraction;
                         geminiResetWk = resetTime;
+                        hasGeminiWk = true;
                     } else {
                         gemini5h = fraction;
                         geminiReset5h = resetTime;
+                        hasGemini5h = true;
                     }
                 }
             }
         }
 
+        const isFree = (account.isFree === true) || (!hasClaude5h && !hasGemini5h);
+        const planName = account.planName || (isFree ? 'Free' : 'Pro');
+
         return {
             accountId: account.id,
             accountEmail: account.email,
             fetchedAt: new Date().toISOString(),
+            isFree: isFree,
+            planName: planName,
             claude: {
-                rolling5h: {
+                has5h: hasClaude5h,
+                rolling5h: hasClaude5h ? {
                     fraction: claude5h,
                     pct: Math.round(claude5h * 100),
-                    resetTimestamp: claudeReset5h || this._calcDefaultReset(5)
-                },
+                    resetTimestamp: claudeReset5h || (claude5h < 1.0 ? this._calcDefaultReset(5) : null)
+                } : null,
                 weekly: {
                     fraction: claudeWk,
                     pct: Math.round(claudeWk * 100),
-                    resetTimestamp: claudeResetWk || this._calcDefaultWeeklyReset()
+                    resetTimestamp: claudeResetWk || (claudeWk < 1.0 ? this._calcDefaultWeeklyReset() : null)
                 }
             },
             gemini: {
-                rolling5h: {
+                has5h: hasGemini5h,
+                rolling5h: hasGemini5h ? {
                     fraction: gemini5h,
                     pct: Math.round(gemini5h * 100),
-                    resetTimestamp: geminiReset5h || this._calcDefaultReset(5)
-                },
+                    resetTimestamp: geminiReset5h || (gemini5h < 1.0 ? this._calcDefaultReset(5) : null)
+                } : null,
                 weekly: {
                     fraction: geminiWk,
                     pct: Math.round(geminiWk * 100),
-                    resetTimestamp: geminiResetWk || this._calcDefaultWeeklyReset()
+                    resetTimestamp: geminiResetWk || (geminiWk < 1.0 ? this._calcDefaultWeeklyReset() : null)
                 }
             }
         };

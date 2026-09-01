@@ -164,7 +164,7 @@ export class QuotaCache {
 
     /**
      * Calculates human readable countdown string from an ISO timestamp without any network request.
-     * @param {string} isoTimestamp
+     * @param {string|null} isoTimestamp
      * @param {boolean} isWeekly
      * @returns {string}
      */
@@ -172,6 +172,8 @@ export class QuotaCache {
         if (!isoTimestamp) return 'Ready';
         
         const target = new Date(isoTimestamp).getTime();
+        if (isNaN(target)) return 'Ready';
+
         const now = Date.now();
         const diffMs = target - now;
 
@@ -196,5 +198,48 @@ export class QuotaCache {
             return `${hours}h ${mins.toString().padStart(2, '0')}m`;
         }
         return `${mins} min`;
+    }
+
+    /**
+     * Resolves effective quota considering whether the countdown is ready.
+     * When the countdown is "Ready", the quota is considered full (fraction 1.0, pct 100).
+     * @param {Object|null} windowData
+     * @param {boolean} isWeekly
+     * @returns {{fraction: number, pct: number, timeStr: string, isReady: boolean}}
+     */
+    static getEffectiveWindowQuota(windowData, isWeekly = false) {
+        if (!windowData) {
+            return {
+                fraction: 1.0,
+                pct: 100,
+                timeStr: 'N/A',
+                isReady: true,
+                available: false
+            };
+        }
+
+        const timeStr = QuotaCache.formatCountdown(windowData?.resetTimestamp, isWeekly);
+        const isReady = (timeStr === 'Ready');
+
+        if (isReady) {
+            return {
+                fraction: 1.0,
+                pct: 100,
+                timeStr: 'Ready',
+                isReady: true,
+                available: true
+            };
+        }
+
+        const frac = (typeof windowData?.fraction === 'number') ? windowData.fraction : 1.0;
+        const pct = (typeof windowData?.pct === 'number') ? windowData.pct : Math.round(frac * 100);
+
+        return {
+            fraction: frac,
+            pct: pct,
+            timeStr: timeStr,
+            isReady: false,
+            available: true
+        };
     }
 }

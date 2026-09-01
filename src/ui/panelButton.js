@@ -1,8 +1,17 @@
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import { QuotaCache } from '../lib/cache.js';
 import { AntigravityPopupMenuSection } from './popupMenu.js';
+
+const extDir = Gio.File.new_for_uri(import.meta.url).get_parent().get_parent();
+const claudeSvgFile = extDir.get_child('ressources').get_child('anthropic_claude.svg');
+const geminiSvgFile = extDir.get_child('ressources').get_child('google_gemini.svg');
+
+const claudeGIcon = Gio.FileIcon.new(claudeSvgFile);
+const geminiGIcon = Gio.FileIcon.new(geminiSvgFile);
 
 export const AntigravityPanelButton = GObject.registerClass(
 {
@@ -21,13 +30,53 @@ class AntigravityPanelButton extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER
         });
 
-        this._label = new St.Label({
-            text: '🛸 Quotas...',
+        // Claude Icon & Label
+        this._claudeIcon = new St.Icon({
+            gicon: claudeGIcon,
+            icon_size: 14,
+            style_class: 'antigravity-topbar-icon',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        this._claudeLabel = new St.Label({
+            text: '',
             style_class: 'antigravity-topbar-label',
             y_align: Clutter.ActorAlign.CENTER
         });
 
-        this._box.add_child(this._label);
+        // Separator
+        this._sepLabel = new St.Label({
+            text: ' · ',
+            style_class: 'antigravity-topbar-sep',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // Gemini Icon & Label
+        this._geminiIcon = new St.Icon({
+            gicon: geminiGIcon,
+            icon_size: 14,
+            style_class: 'antigravity-topbar-icon',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        this._geminiLabel = new St.Label({
+            text: '',
+            style_class: 'antigravity-topbar-label',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        // Fallback label (when no account is configured)
+        this._fallbackLabel = new St.Label({
+            text: '🛸 Antigravity',
+            style_class: 'antigravity-topbar-label',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this._box.add_child(this._claudeIcon);
+        this._box.add_child(this._claudeLabel);
+        this._box.add_child(this._sepLabel);
+        this._box.add_child(this._geminiIcon);
+        this._box.add_child(this._geminiLabel);
+        this._box.add_child(this._fallbackLabel);
+
         this.add_child(this._box);
 
         // Add Popup Menu Section
@@ -55,54 +104,87 @@ class AntigravityPanelButton extends PanelMenu.Button {
         this.updateUI();
     }
 
+    _applyStatus(label, pct, critThreshold) {
+        label.remove_style_class_name('antigravity-status-good');
+        label.remove_style_class_name('antigravity-status-warning');
+        label.remove_style_class_name('antigravity-status-critical');
+
+        if (critThreshold > 0 && pct <= critThreshold) {
+            label.add_style_class_name('antigravity-status-critical');
+        } else if (pct <= 50) {
+            label.add_style_class_name('antigravity-status-warning');
+        } else {
+            label.add_style_class_name('antigravity-status-good');
+        }
+    }
+
     updateUI() {
         const active = this._engine.accountsManager.getActiveAccount();
         if (!active) {
-            this._label.set_text('🛸 Antigravity');
+            this._claudeIcon.hide();
+            this._claudeLabel.hide();
+            this._sepLabel.hide();
+            this._geminiIcon.hide();
+            this._geminiLabel.hide();
+            this._fallbackLabel.show();
+            this._fallbackLabel.set_text('🛸 Antigravity');
             this._menuSection.rebuild();
             return;
         }
 
+        this._fallbackLabel.hide();
+        this._claudeIcon.show();
+        this._claudeLabel.show();
+        this._sepLabel.show();
+        this._geminiIcon.show();
+        this._geminiLabel.show();
+
         const snapshot = this._engine.cache.getSnapshot(active.id, active.email);
-        const c5h = snapshot?.claude?.rolling5h?.pct ?? 100;
-        const cWk = snapshot?.claude?.weekly?.pct ?? 100;
-        const g5h = snapshot?.gemini?.rolling5h?.pct ?? 100;
-        const gWk = snapshot?.gemini?.weekly?.pct ?? 100;
+        const isFree = snapshot?.isFree || active.isFree || (snapshot && snapshot.claude?.has5h === false && snapshot.gemini?.has5h === false);
+
+        const c5hRes = QuotaCache.getEffectiveWindowQuota(snapshot?.claude?.rolling5h, false);
+        const cWkRes = QuotaCache.getEffectiveWindowQuota(snapshot?.claude?.weekly, true);
+        const g5hRes = QuotaCache.getEffectiveWindowQuota(snapshot?.gemini?.rolling5h, false);
+        const gWkRes = QuotaCache.getEffectiveWindowQuota(snapshot?.gemini?.weekly, true);
+
+        const c5h = c5hRes.pct;
+        const cWk = cWkRes.pct;
+        const g5h = g5hRes.pct;
+        const gWk = gWkRes.pct;
 
         const limitType = this._settings ? this._settings.get_string('limit-display-type') : '5h';
         const critThreshold = this._settings ? this._settings.get_int('critical-threshold') : 15;
 
-        // Build label text
-        if (limitType === 'weekly') {
-            this._label.set_text(`⚡ ${cWk}% · 🔷 ${gWk}%`);
+        // Build labels
+        let claudeMinPct;
+        let geminiMinPct;
+
+        if (isFree) {
+            // Free accounts only have a weekly quota (no 5h)
+            this._claudeLabel.set_text(`${cWk}%`);
+            this._geminiLabel.set_text(`${gWk}%`);
+            claudeMinPct = cWk;
+            geminiMinPct = gWk;
+        } else if (limitType === 'weekly') {
+            this._claudeLabel.set_text(`${cWk}%`);
+            this._geminiLabel.set_text(`${gWk}%`);
+            claudeMinPct = cWk;
+            geminiMinPct = gWk;
         } else if (limitType === 'both') {
-            this._label.set_text(`⚡ ${c5h}% [W:${cWk}%] · 🔷 ${g5h}% [W:${gWk}%]`);
+            this._claudeLabel.set_text(`${c5h}% [W:${cWk}%]`);
+            this._geminiLabel.set_text(`${g5h}% [W:${gWk}%]`);
+            claudeMinPct = Math.min(c5h, cWk);
+            geminiMinPct = Math.min(g5h, gWk);
         } else {
             // '5h' (default)
-            this._label.set_text(`⚡ ${c5h}% · 🔷 ${g5h}%`);
+            this._claudeLabel.set_text(`${c5h}%`);
+            this._geminiLabel.set_text(`${g5h}%`);
+            claudeMinPct = c5h;
+            geminiMinPct = g5h;
         }
 
-        // Apply color based on active display mode
-        let minPct;
-        if (limitType === 'weekly') {
-            minPct = Math.min(cWk, gWk);
-        } else if (limitType === 'both') {
-            minPct = Math.min(c5h, cWk, g5h, gWk);
-        } else {
-            minPct = Math.min(c5h, g5h);
-        }
-
-        this._label.remove_style_class_name('antigravity-status-good');
-        this._label.remove_style_class_name('antigravity-status-warning');
-        this._label.remove_style_class_name('antigravity-status-critical');
-
-        if (critThreshold > 0 && minPct <= critThreshold) {
-            this._label.add_style_class_name('antigravity-status-critical');
-        } else if (minPct <= 50) {
-            this._label.add_style_class_name('antigravity-status-warning');
-        } else {
-            this._label.add_style_class_name('antigravity-status-good');
-        }
+        this._applyStatus(this._claudeLabel, claudeMinPct, critThreshold);
+        this._applyStatus(this._geminiLabel, geminiMinPct, critThreshold);
 
         // Rebuild popup menu contents
         this._menuSection.rebuild();
