@@ -18,8 +18,14 @@ export class QuotaEngine {
         this._localTimerSourceId = null;
         this._isRefreshing = false;
 
+        this._cacheChangedListener = () => {
+            this._notifyListeners();
+        };
+        this.cache.addChangeListener(this._cacheChangedListener);
+
         // Auto-refresh when accounts list is updated (e.g. from Preferences or Session Capture)
         this._accountsChangedListener = async () => {
+            await this.cache.loadDiskCache();
             await this.refreshAllAccounts();
         };
         this.accountsManager.addChangeListener(this._accountsChangedListener);
@@ -112,6 +118,11 @@ export class QuotaEngine {
             this.accountsManager.removeChangeListener(this._accountsChangedListener);
             this._accountsChangedListener = null;
         }
+        if (this._cacheChangedListener) {
+            this.cache.removeChangeListener(this._cacheChangedListener);
+            this._cacheChangedListener = null;
+        }
+        this.cache.destroy();
         this.accountsManager.destroy();
     }
 

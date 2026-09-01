@@ -10,8 +10,57 @@ export class QuotaCache {
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'gnome-antigravity']);
         this._cacheFile = GLib.build_filenamev([this._cacheDir, 'cache.json']);
         this._memoryCache = new Map();
+        this._listeners = new Set();
+        this._fileMonitor = null;
+        this._fileMonitorId = null;
+
         this._ensureCacheDir();
+        this._setupFileMonitor();
         this.loadDiskCache();
+    }
+
+    _setupFileMonitor() {
+        try {
+            const file = Gio.File.new_for_path(this._cacheFile);
+            this._fileMonitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
+            this._fileMonitorId = this._fileMonitor.connect('changed', async (mon, f, other, eventType) => {
+                if (
+                    eventType === Gio.FileMonitorEvent.CHANGES_DONE_HINT ||
+                    eventType === Gio.FileMonitorEvent.CREATED
+                ) {
+                    await this.loadDiskCache();
+                    this._notifyListeners();
+                }
+            });
+        } catch (e) {
+            console.warn(`[Antigravity] Cache file monitor warning: ${e.message}`);
+        }
+    }
+
+    addChangeListener(callback) {
+        this._listeners.add(callback);
+    }
+
+    removeChangeListener(callback) {
+        this._listeners.delete(callback);
+    }
+
+    _notifyListeners() {
+        for (const cb of this._listeners) {
+            try {
+                cb();
+            } catch (e) {
+                console.error(`[Antigravity] Cache listener error: ${e.message}`);
+            }
+        }
+    }
+
+    destroy() {
+        if (this._fileMonitor && this._fileMonitorId) {
+            this._fileMonitor.disconnect(this._fileMonitorId);
+            this._fileMonitorId = null;
+        }
+        this._listeners.clear();
     }
 
     _ensureCacheDir() {
@@ -218,10 +267,14 @@ export class QuotaCache {
             };
         }
 
-        const timeStr = QuotaCache.formatCountdown(windowData?.resetTimestamp, isWeekly);
-        const isReady = (timeStr === 'Ready');
+        const hasReset = Boolean(windowData?.resetTimestamp);
+        const timeStr = hasReset ? QuotaCache.formatCountdown(windowData.resetTimestamp, isWeekly) : 'Ready';
+        const isExpired = hasReset && (timeStr === 'Ready');
 
-        if (isReady) {
+        const frac = (typeof windowData?.fraction === 'number') ? windowData.fraction : 1.0;
+        const pct = (typeof windowData?.pct === 'number') ? windowData.pct : Math.round(frac * 100);
+
+        if (isExpired) {
             return {
                 fraction: 1.0,
                 pct: 100,
@@ -231,14 +284,11 @@ export class QuotaCache {
             };
         }
 
-        const frac = (typeof windowData?.fraction === 'number') ? windowData.fraction : 1.0;
-        const pct = (typeof windowData?.pct === 'number') ? windowData.pct : Math.round(frac * 100);
-
         return {
             fraction: frac,
             pct: pct,
-            timeStr: timeStr,
-            isReady: false,
+            timeStr: hasReset ? timeStr : (pct === 100 ? 'Ready' : 'N/A'),
+            isReady: (pct === 100),
             available: true
         };
     }
