@@ -19,21 +19,23 @@
 
 ## ✨ Features
 
+- 🎨 **Official SVG Brand Icons**:
+  - Crisp vector brand icons for **Anthropic Claude** and **Google Gemini** in the top bar and popup menu.
 - 📊 **Top Bar Monitoring**:
-  - Direct percentage display for Claude (`⚡`) and Gemini (`🔷`).
+  - Direct percentage display for Claude and Gemini with independent status color coding (🟢 Green, 🟡 Yellow, 🔴 Red).
   - Configurable display mode selector: **5h Limit**, **Weekly Limit**, or **Both**.
-  - Dynamic color coding based on critical alert threshold (🟢 Green, 🟡 Yellow, 🔴 Red).
+  - Automatic adaptation for **Free Tier** (weekly quotas only) and **Pro Tier** (5h rolling + weekly).
 - 📋 **Comprehensive Popup Menu**:
   - ASCII progress bars and exact percentage gauges.
   - Real-time countdown for 5h quota replenishments and weekly reset schedule.
   - Overview of all registered team members and accounts.
 - 🌟 **Star Selection (⭐ / ☆)**:
   - Instant top bar account switching with a single click on the star icon.
-- 🪄 **Automatic Session Capture**:
-  - Automatic and secure detection of active local IDE sessions (Language Server) without requiring manual token entry.
+- 🪄 **Automatic Session Capture & Multi-Account Matching**:
+  - Automatic and secure detection of active local IDE sessions (Language Server) matched by user email without manual token entry.
   - Strict quota isolation between multiple instances and team accounts.
 - ⚡ **Network Optimization & Offline Cache**:
-  - Local countdown calculation without any network requests.
+  - Local countdown calculation without redundant network requests.
   - Configurable refresh interval (default: 300s, disable with 0s).
 - 🎨 **Modern Libadwaita Interface**:
   - Full-featured preferences window built with modern Adwaita widgets.
@@ -49,9 +51,9 @@
 
 ### 1. Top Bar
 ```text
-⚡ 100% · 🔷 84%
+[Claude] 100% · [Gemini] 84%
 ```
-*(or with weekly limit: `⚡ 100% [W:6%] · 🔷 84% [W:41%]`)*
+*(or with weekly limit: `[Claude] 100% [W:6%] · [Gemini] 84% [W:41%]`)*
 
 ### 2. Popup Menu
 ```text
@@ -59,13 +61,13 @@
 │ 🛸 Antigravity Quota Monitor                                [ ⚙️ ] [ 🔄 Refresh ]│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ ⭐ John Doe (john.doe@example.com)                                  ● ACTIVE │
-│   ⚡ Claude :  5h [██████████] 100% (Ready)     ·  Wk [█░░░░░░░░░] 6% (📅 Mon.)│
-│   🔷 Gemini :  5h [████████░░] 84% (⏳ 2h15)   ·  Wk [████░░░░░░] 41% (📅 Mon.)│
+│   [Claude] :  5h [██████████] 100% (Ready)     ·  Wk [█░░░░░░░░░] 6% (📅 Mon.)│
+│   [Gemini] :  5h [████████░░] 84% (⏳ 2h15)   ·  Wk [████░░░░░░] 41% (📅 Mon.)│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 👥 OTHER TEAM ACCOUNTS (1)                                                  │
 │ ☆ Jane Smith (jane.smith@example.com)                                       │
-│   ⚡ Claude :  5h [██████████] 100% (Ready)     ·  Wk [█████░░░░░] 51% (📅 Mon.)│
-│   🔷 Gemini :  5h [█████████░] 93% (⏳ 4h10)   ·  Wk [██████████] 99% (📅 Mon.)│
+│   [Claude] :  5h [██████████] 100% (Ready)     ·  Wk [█████░░░░░] 51% (📅 Mon.)│
+│   [Gemini] :  5h [█████████░] 93% (⏳ 4h10)   ·  Wk [██████████] 99% (📅 Mon.)│
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -137,6 +139,9 @@ gnome-antigravity/
 │   ├── prefs.js                       # Adwaita preferences window (Adw.PreferencesPage)
 │   ├── metadata.json                  # Metadata and GNOME version compatibility (45+)
 │   ├── stylesheet.css                 # Top bar indicator and account card styles
+│   ├── ressources/                    # Official brand assets (vector SVG icons)
+│   │   ├── anthropic_claude.svg
+│   │   └── google_gemini.svg
 │   ├── schemas/                       # GSettings schemas (compiled GSchema XML)
 │   │   └── org.gnome.shell.extensions.antigravity.gschema.xml
 │   ├── ui/                            # Visual UI components
@@ -171,3 +176,9 @@ gnome-antigravity/
 ## 📄 License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## ⚖️ Trademarks & Legal Notice
+
+All product names, logos, and brands are property of their respective owners. All company, product, and service names used in this project and extension are for identification and visual representation purposes only. Use of these names, logos, and brands does not imply endorsement or official affiliation.
