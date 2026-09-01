@@ -11,6 +11,6 @@
     "50"
   ],
   "url": "https://github.com/bazinfla/gnome-antigravity",
-  "version": 1,
+  "version": 4,
   "settings-schema": "org.gnome.shell.extensions.antigravity"
 }
